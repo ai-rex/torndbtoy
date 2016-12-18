@@ -197,7 +197,7 @@ class Connection(object):
         """
         cursor = self._cursor()
         try:
-            cursor.executemany(query, parameters)
+            self._executemany(cursor, query, parameters)
             return cursor.lastrowid
         finally:
             cursor.close()
@@ -209,7 +209,7 @@ class Connection(object):
         """
         cursor = self._cursor()
         try:
-            cursor.executemany(query, parameters)
+            self._executemany(cursor, query, parameters)
             return cursor.rowcount
         finally:
             cursor.close()
@@ -238,6 +238,14 @@ class Connection(object):
     def _execute(self, cursor, query, parameters, kwparameters):
         try:
             return cursor.execute(query, kwparameters or parameters)
+        except OperationalError:
+            logging.error("Error connecting to MySQL on %s", self.host)
+            self.close()
+            raise
+
+    def _executemany(self, cursor, query, parameters):
+        try:
+            return cursor.executemany(query, parameters)
         except OperationalError:
             logging.error("Error connecting to MySQL on %s", self.host)
             self.close()
