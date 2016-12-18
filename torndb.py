@@ -273,6 +273,16 @@ class Connection(object):
             self.close()
             raise
 
+    # transaction
+    def begin(self):
+        self.execute('START TRANSACTION')
+
+    def commit(self):
+        self.execute('COMMIT')
+
+    def rollback(self):
+        self.execute('ROLLBACK')
+
 
 class Row(dict):
     """A dict that allows for object-like property access syntax."""
@@ -281,6 +291,21 @@ class Row(dict):
             return self[name]
         except KeyError:
             raise AttributeError(name)
+
+
+def safe_transaction(connection):
+    def dec(func):
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except:
+                # try to rollback at first whatever error happened
+                conn = connection()
+                conn.rollback()
+                raise
+        return wrapper
+    return dec
+
 
 if MySQLdb is not None:
     # Fix the access conversions to properly recognize unicode/binary
