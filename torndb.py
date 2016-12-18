@@ -47,6 +47,26 @@ except ImportError:
 version = "0.3"
 version_info = (0, 3, 0, 0)
 
+# http://dev.mysql.com/doc/refman/5.5/en/error-messages-client.html
+CR_SERVER_GONE_ERROR = 2006
+
+
+def _query_with_reconnect(func):
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except MySQLdb.OperationalError, e:
+            # (2006, 'MySQL server has gone away')
+            # May lost connection accidentally, try reconnect
+            # http://dev.mysql.com/doc/refman/5.5/en/gone-away.html
+            if e[0] == CR_SERVER_GONE_ERROR:
+                self.reconnect()
+                return func(self, *args, **kwargs)
+            # raise uncaught exceptions such as 2002, 2003
+            raise
+    return wrapper
+
+
 class Connection(object):
     """A lightweight wrapper around MySQLdb DB-API connections.
 
@@ -235,6 +255,7 @@ class Connection(object):
         self._ensure_connected()
         return self._db.cursor()
 
+    @_query_with_reconnect
     def _execute(self, cursor, query, parameters, kwparameters):
         try:
             return cursor.execute(query, kwparameters or parameters)
@@ -243,6 +264,7 @@ class Connection(object):
             self.close()
             raise
 
+    @_query_with_reconnect
     def _executemany(self, cursor, query, parameters):
         try:
             return cursor.executemany(query, parameters)
